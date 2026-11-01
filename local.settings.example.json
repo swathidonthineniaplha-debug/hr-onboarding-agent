@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "LLM_PROVIDER": "mock",
+    "STORAGE_CONNECTION_STRING": "UseDevelopmentStorage=true",
+    "BLOB_INPUT_CONTAINER": "onboarding-uploads",
+    "BLOB_IDENTITY_CONTAINER": "identity-documents",
+    "OUTPUT_DIR": "output",
+    "LOG_LEVEL": "INFO"
+  }
+}

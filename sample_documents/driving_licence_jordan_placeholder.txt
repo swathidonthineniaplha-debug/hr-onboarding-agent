@@ -1,0 +1,12 @@
+SAMPLE - FICTIONAL TEST DATA
+
+Driving Licence (fictional test copy)
+
+Licence no. ........ DL000002
+Holder ............. Jordan Placeholder
+Born ............... 1985-09-03
+Address ............ 2 Placeholder Road, Mocksville, ZZ2 2ZZ
+Valid until ........ 2030-09-02
+Entitlement ........ B, BE, C1
+
+Not a real licence. Created for software testing only.

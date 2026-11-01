@@ -1,0 +1,15 @@
+SAMPLE - FICTIONAL TEST DATA
+
+PASSPORT
+Issuing country: Republic of Testland (fictional)
+
+Surname:            EXAMPLE
+Given names:        ALEX
+Nationality:        Testlandian
+Date of birth:      12/04/1990
+Passport number:    AB000001
+Date of issue:      15/06/2021
+Date of expiry:     14/06/2031
+
+This is a fictional test document for software testing only.
+It is not a real identity document.

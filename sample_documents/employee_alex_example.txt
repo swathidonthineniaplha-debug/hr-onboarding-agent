@@ -1,0 +1,28 @@
+SAMPLE - FICTIONAL TEST DATA
+
+NEW STARTER INFORMATION FORM
+Example Corp HR (fictional)
+
+--- Personal details ---
+Full name:            Alex Example
+Date of birth:        12 April 1990
+Age:                  31
+
+--- Right to work in the UK ---
+Status:               Skilled Worker visa, expires 2028-03-31
+Share code checked:   Yes (fictional)
+
+--- Previous employment ---
+1) Company:           Example Widgets Ltd
+   Job title:         Data Analyst
+   Dates:             2019-01 to 2022-06
+   Referee:           Sam Referee (Line Manager)
+   Referee contact:   sam.referee@example.com / 01632 960001
+
+2) Company:           Sample Logistics plc
+   Job title:         Senior Data Analyst
+   Dates:             2022-07 to 2026-08
+   Referee:           Morgan Testperson (Head of Analytics)
+   Referee contact:   morgan.testperson@example.com / 01632 960002
+
+Form completed by the candidate. All details are fictional.

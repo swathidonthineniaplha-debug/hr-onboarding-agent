@@ -1,0 +1,4 @@
+# Local development and testing only - not deployed.
+-r requirements.txt
+pytest>=8.3
+fpdf2>=2.8  # generates sample_documents/*.pdf

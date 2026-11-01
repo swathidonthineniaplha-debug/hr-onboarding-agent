@@ -1,0 +1,21 @@
+# Secrets and local settings - never commit these
+.env
+local.settings.json
+
+# Virtual environment
+.venv/
+
+# Generated output and local databases
+output/
+*.db
+
+# Azurite (local Azure Storage emulator) files
+__azurite*
+
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor
+.vscode/settings.json

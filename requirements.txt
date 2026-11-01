@@ -1,0 +1,23 @@
+# Runtime dependencies - installed in Azure during deployment.
+
+# Azure Functions runtime bindings
+azure-functions>=1.21
+
+# Azure Storage + identity (managed identity / DefaultAzureCredential)
+azure-storage-blob>=12.24
+azure-identity>=1.19
+
+# Azure SQL via ODBC Driver 18
+pyodbc>=5.2
+
+# LLM providers (the openai SDK also covers Azure OpenAI)
+openai>=3.0
+anthropic>=2.3
+
+# Data validation, PDF text extraction and Excel output
+pydantic>=2.10
+pypdf>=6.0
+openpyxl>=3.1
+
+# Loads .env for local development
+python-dotenv>=1.0
