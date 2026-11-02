@@ -1,0 +1,25 @@
+# Files left out of the deployment package (same syntax as .gitignore)
+
+# Virtual environment
+.venv/
+
+# Tests and generated output
+tests/
+output/
+
+# Python bytecode and tool caches
+__pycache__/
+.pytest_cache/
+
+# Sample documents (uploaded to Blob Storage separately)
+sample_documents/
+
+# Azurite (local Azure Storage emulator) files
+__azurite*
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
+
+# Local settings and secrets - set these as App Settings in Azure instead
+local.settings.json
+.env
