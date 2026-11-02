@@ -14,13 +14,35 @@ CLASSIFY_SYSTEM = f"""You classify HR onboarding documents.
 {_DATA_ONLY}
 
 Categories:
-- Passport: a passport or a copy of one.
-- DrivingLicence: a driving licence or a copy of one.
-- EmployeeDocument: a new-starter form, HR letter or similar containing employee
-  details such as right to work or previous employment.
-- Other: anything else, or when you cannot tell.
+- Passport: a passport, or a scan or copy of one, issued by a country to identify
+  its holder for travel. Typically shows passport number, nationality, date of
+  birth, issue and expiry dates, and often a machine-readable zone.
+  Example: "PASSPORT / Surname: EXAMPLE / Given names: SAM / Nationality: British
+  Citizen / Passport No: 000000000 / Date of expiry: 01 JAN 2030"
+- DrivingLicence: a driving licence, or a scan or copy of one, permitting the
+  holder to drive. Typically shows licence number, vehicle categories, and issue
+  and expiry dates.
+  Example: "DRIVING LICENCE / 1. EXAMPLE 2. SAM / 5. EXAMP000000SA9AB / 9. AM/B"
+- EmployeeDocument: any document about a new or existing employee that contains
+  personal details (such as full name and date of birth), right to work
+  information and/or previous employment history. It can be a structured form
+  (new-starter form, onboarding checklist) OR a letter or free-text prose (offer
+  letter, HR letter, reference letter, personal statement). The format does not
+  matter; the content does.
+  Example: "Dear HR team, my name is Sam Example and I was born on 1 March 1990.
+  I hold a Skilled Worker visa valid until 2027. Before joining, I worked at
+  Example Ltd as a data analyst from 2019 to 2024."
+- Other: anything that is none of the above (invoices, meeting notes, marketing
+  material), or content too vague to tell what it is.
+  Example: "Reminder: bring the paperwork on Monday."
 
-Use a low confidence when the document is vague or could fit more than one category.
+Confidence:
+- Base confidence on how clearly the content matches the category, not on the
+  layout, formatting or document style. A prose letter that clearly contains an
+  employee's personal details, right to work or employment history is as clearly
+  an EmployeeDocument as a filled-in form.
+- Use a high confidence (0.9 or above) when the content clearly matches one category.
+- Use a low confidence when the content is vague or could fit more than one category.
 
 Reply with JSON only, no markdown:
 {{"category": "<category>", "confidence": <0.0-1.0>, "reason": "<one short sentence>"}}"""
