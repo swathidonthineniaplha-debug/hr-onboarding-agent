@@ -1,4 +1,4 @@
-"""SQL repository: schema, upsert on (PersonKey, FileName), connection strings."""
+"""SQL repository: schema, upserts, connection strings."""
 
 import json
 import re
@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 
 from hr_onboarding.storage.sql_repository import (
     EMPLOYEE_COLUMNS,
+    classification_results,
     employee_data,
     resolve_database_url,
 )
@@ -66,6 +67,36 @@ def test_database_enforces_unique_person_key_and_file_name(repository):
         conn.execute(insert(employee_data).values(**make_row()))  # bypass upsert on purpose
 
 
+def make_classification(**changes):
+    row = {
+        "Location": "incoming/scan.txt",
+        "FileName": "scan.txt",
+        "Category": "Passport",
+        "Confidence": 0.95,
+        "Reason": "Has a passport number",
+        "PersonKey": "unknown",
+        "Status": "NeedsReview",
+        "Issues": "Name not found",
+        "ProcessedAt": datetime(2026, 11, 1, 9, 0, 0),
+    }
+    return {**row, **changes}
+
+
+def test_classification_upsert_keeps_one_row_per_location(repository):
+    repository.upsert_classification(make_classification())
+    repository.upsert_classification(make_classification(Reason="Second look"))
+    [row] = repository.fetch_classifications()
+    assert (row["Id"], row["Reason"]) == (1, "Second look")
+
+
+def test_classification_replaces_previous_location(repository):
+    repository.upsert_classification(make_classification())
+    routed = make_classification(Location="passports/casey-sample/scan.txt", PersonKey="casey-sample",
+                                 Status="Processed", Issues=None)
+    repository.upsert_classification(routed, replaces="incoming/scan.txt")
+    assert [r["Location"] for r in repository.fetch_classifications()] == ["passports/casey-sample/scan.txt"]
+
+
 def test_create_schema_is_safe_to_repeat(repository):
     repository.upsert(make_row())
     repository.create_schema()
@@ -88,6 +119,8 @@ def test_sqlalchemy_url_is_used_as_is(tmp_path):
 
 def test_portal_script_matches_table_definition():
     script = SQL_SCRIPT.read_text()
-    for column in ["Id", *EMPLOYEE_COLUMNS]:
+    for column in ["Id", *EMPLOYEE_COLUMNS, *(c.name for c in classification_results.columns)]:
         assert re.search(rf"^\s+{column}\s", script, re.MULTILINE), column
     assert "UNIQUE (PersonKey, FileName)" in script
+    assert "CREATE TABLE dbo.ClassificationResults" in script
+    assert "UNIQUE (Location)" in script

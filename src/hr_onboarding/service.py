@@ -1,8 +1,11 @@
-"""Connects the pipeline to storage: incoming blob -> routed blob (+ SQL row).
+"""Connects the pipeline to storage: incoming blob -> routed blob (+ SQL rows).
 
 Order matters for safe retries: copy to the destination, write SQL, and only
 then delete from incoming. If any step fails, the original stays in incoming
 and processing it again is harmless (blob overwrite + SQL upsert).
+
+Every document gets a ClassificationResults row; employee documents also get
+an EmployeeData row. The report is built from those two tables.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from typing import Any
 from .llm import LLMClient
 from .models import DocumentCategory, DocumentResult
 from .pipeline import process_document
+from .reporting import Report, build_report
 from .routing import (
     ALL_CONTAINERS,
     INCOMING,
@@ -23,7 +27,7 @@ from .routing import (
     destination_path,
     review_metadata,
 )
-from .storage import BlobStore, EmployeeRepository, to_employee_row
+from .storage import BlobStore, EmployeeRepository, to_classification_row, to_employee_row
 
 logger = logging.getLogger(__name__)
 
@@ -66,24 +70,35 @@ class OnboardingService:
         content = self.blobs.download(INCOMING, blob_name)
         file_name = PurePosixPath(blob_name).name
         result = process_document(file_name, content, self.llm, self.today)
+        processed_at = utc_now()
+        incoming_location = f"{INCOMING}/{blob_name}"
 
         container = destination_container(result)
         if container is None:
             self.blobs.set_metadata(INCOMING, blob_name, review_metadata(result))
+            self.repository.upsert_classification(to_classification_row(result, incoming_location, processed_at))
             logger.info("%s left in %s for review", blob_name, INCOMING)
             return ProcessedDocument(
-                result, f"{INCOMING}/{blob_name}", self.blobs.url(INCOMING, blob_name), routed=False
+                result, incoming_location, self.blobs.url(INCOMING, blob_name), routed=False
             )
 
         path = destination_path(result)
+        location = f"{container}/{path}"
         self.blobs.upload(container, path, content)
         blob_url = self.blobs.url(container, path)
 
         employee_row = None
         if result.category is DocumentCategory.EMPLOYEE_DOCUMENT:
-            employee_row = to_employee_row(result, blob_url, utc_now())
+            employee_row = to_employee_row(result, blob_url, processed_at)
             self.repository.upsert(employee_row)
+        self.repository.upsert_classification(
+            to_classification_row(result, location, processed_at), replaces=incoming_location
+        )
 
         self.blobs.delete(INCOMING, blob_name)
-        logger.info("%s routed to %s/%s", blob_name, container, path)
-        return ProcessedDocument(result, f"{container}/{path}", blob_url, routed=True, employee_row=employee_row)
+        logger.info("%s routed to %s", blob_name, location)
+        return ProcessedDocument(result, location, blob_url, routed=True, employee_row=employee_row)
+
+    def build_report(self) -> Report:
+        """Excel report of everything in the database, not just the latest run."""
+        return build_report(self.repository.fetch_classifications(), self.repository.fetch_all())

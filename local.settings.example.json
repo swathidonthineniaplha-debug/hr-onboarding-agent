@@ -2,9 +2,12 @@
   "IsEncrypted": false,
   "Values": {
     "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AZURE_FUNCTIONS_ENVIRONMENT": "Development",
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "BLOB_TRIGGER_SOURCE": "LogsAndContainerScan",
     "LLM_PROVIDER": "mock",
     "STORAGE_CONNECTION_STRING": "UseDevelopmentStorage=true",
+    "SQL_CONNECTION_STRING": "",
     "OUTPUT_DIR": "output",
     "LOG_LEVEL": "INFO"
   }

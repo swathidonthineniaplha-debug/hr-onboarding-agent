@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from openpyxl import load_workbook
 
-from hr_onboarding.reporting import build_report, save_report_locally, save_report_to_blob
+from hr_onboarding.reporting import save_report_locally, save_report_to_blob
 from hr_onboarding.routing import INCOMING, REPORTS
 
 SAMPLES = Path(__file__).resolve().parent.parent / "sample_documents"
@@ -18,8 +18,8 @@ def workbook(blobs, service):
     for path in SAMPLES.iterdir():
         if path.suffix in {".txt", ".pdf"}:
             blobs.upload(INCOMING, path.name, path.read_bytes())
-    report = build_report(service.process_all_incoming())
-    return load_workbook(io.BytesIO(report))
+    service.process_all_incoming()
+    return load_workbook(io.BytesIO(service.build_report().content))
 
 
 def test_has_three_sheets(workbook):
@@ -45,6 +45,23 @@ def test_row_counts(workbook):
     assert workbook["Classification"].max_row == 1 + 7   # header + every document
     assert workbook["EmployeeData"].max_row == 1 + 2     # Alex + Jordan
     assert workbook["PreviousEmployment"].max_row == 1 + 2  # Alex's two jobs (Jordan's prose: none in mock)
+
+
+def test_report_counts_match_sheets(blobs, service):
+    for path in SAMPLES.iterdir():
+        if path.suffix in {".txt", ".pdf"}:
+            blobs.upload(INCOMING, path.name, path.read_bytes())
+    service.process_all_incoming()
+    counts = service.build_report().row_counts
+    assert counts == {"Classification": 7, "EmployeeData": 2, "PreviousEmployment": 2}
+
+
+def test_report_covers_earlier_runs_too(blobs, service):
+    blobs.upload(INCOMING, "first.txt", (SAMPLES / "employee_alex_example.txt").read_bytes())
+    service.process_all_incoming()
+    blobs.upload(INCOMING, "note.txt", b"Saw someone at reception, ID seen.")
+    service.process_all_incoming()
+    assert service.build_report().row_counts["Classification"] == 2
 
 
 def test_employee_sheet_values(workbook):

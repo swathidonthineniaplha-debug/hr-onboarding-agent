@@ -1,4 +1,4 @@
 [tool.pytest.ini_options]
-# Lets tests import `hr_onboarding` from the src/ layout.
-pythonpath = ["src"]
+# Lets tests import `hr_onboarding` (src/ layout) and `function_app` (project root).
+pythonpath = ["src", "."]
 testpaths = ["tests"]

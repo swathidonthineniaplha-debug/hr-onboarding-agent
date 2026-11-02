@@ -20,7 +20,7 @@ from azure.core.exceptions import ServiceRequestError  # noqa: E402
 from hr_onboarding.config import get_settings  # noqa: E402
 from hr_onboarding.documents import SUPPORTED_SUFFIXES  # noqa: E402
 from hr_onboarding.llm import create_llm_client  # noqa: E402
-from hr_onboarding.reporting import build_report, save_report_locally  # noqa: E402
+from hr_onboarding.reporting import save_report_locally  # noqa: E402
 from hr_onboarding.routing import INCOMING  # noqa: E402
 from hr_onboarding.service import OnboardingService  # noqa: E402
 from hr_onboarding.storage import (  # noqa: E402
@@ -77,7 +77,7 @@ def main() -> None:
     rows = sum(1 for d in documents if d.employee_row)
     print(f"\nEmployeeData rows written: {rows} (table now has {len(repository.fetch_all())})")
     try:
-        path = save_report_locally(build_report(documents), settings.output_dir)
+        path = save_report_locally(service.build_report().content, settings.output_dir)
     except PermissionError:
         sys.exit("Could not write the Excel report - close it in Excel and run again.")
     print(f"Excel report: {path.resolve()}")

@@ -9,7 +9,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 
-from azure.core.exceptions import ResourceExistsError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 
 
@@ -32,6 +32,10 @@ class BlobStore(ABC):
 
     @abstractmethod
     def set_metadata(self, container: str, name: str, metadata: dict[str, str]) -> None: ...
+
+    @abstractmethod
+    def get_metadata(self, container: str, name: str) -> dict[str, str] | None:
+        """The blob's metadata, or None if the blob does not exist."""
 
     @abstractmethod
     def url(self, container: str, name: str) -> str: ...
@@ -62,6 +66,12 @@ class AzureBlobStore(BlobStore):
 
     def set_metadata(self, container: str, name: str, metadata: dict[str, str]) -> None:
         self._service.get_blob_client(container, name).set_blob_metadata(metadata)
+
+    def get_metadata(self, container: str, name: str) -> dict[str, str] | None:
+        try:
+            return dict(self._service.get_blob_client(container, name).get_blob_properties().metadata)
+        except ResourceNotFoundError:
+            return None
 
     def url(self, container: str, name: str) -> str:
         return self._service.get_blob_client(container, name).url
@@ -96,6 +106,11 @@ class InMemoryBlobStore(BlobStore):
         if name not in self.blobs[container]:
             raise KeyError(f"{container}/{name}")
         self.metadata[(container, name)] = dict(metadata)
+
+    def get_metadata(self, container: str, name: str) -> dict[str, str] | None:
+        if name not in self.blobs[container]:
+            return None
+        return dict(self.metadata.get((container, name), {}))
 
     def url(self, container: str, name: str) -> str:
         return f"memory://{container}/{name}"

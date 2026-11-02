@@ -69,7 +69,8 @@ All settings come from environment variables. See [.env.example](.env.example) f
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | _(none)_ / `claude-opus-5-5` | Anthropic connection |
 | `STORAGE_CONNECTION_STRING` | `UseDevelopmentStorage=true` (Azurite) | Blob Storage connection |
 | `SQL_CONNECTION_STRING` | SQLite `output/hr_onboarding.db` | SQLAlchemy URL, or the Azure SQL ODBC string from the portal |
-| `OUTPUT_DIR` | `output` | Excel report location |
+| `OUTPUT_DIR` | `output` | Local runs only: Excel report and SQLite file |
+| `BLOB_TRIGGER_SOURCE` | `EventGrid` | Set to `LogsAndContainerScan` locally (Azurite has no Event Grid) |
 
 ## Running locally
 
@@ -92,11 +93,32 @@ Without Azurite, `python run_local.py --offline` runs the same flow with in-memo
 | Other, low confidence (< 0.8) or name not found | stays in `incoming`, blob metadata `status=NeedsReview` | No |
 
 - **Order of steps:** copy to the destination, then upsert the SQL row, and only then delete from `incoming`. A failure at any step leaves the original in place, and a retry is safe.
-- **One table:** `EmployeeData` has a unique key on `(PersonKey, FileName)`, matching the blob path. For a manual Azure SQL setup, see [sql/create_employee_data.sql](sql/create_employee_data.sql).
-- **Excel report:** sheets Classification, EmployeeData and PreviousEmployment. Saved to `output/onboarding_results.xlsx` locally, or `reports/onboarding_results_<timestamp>.xlsx` in Azure.
+- **Two tables:** `EmployeeData` has a unique key on `(PersonKey, FileName)`, matching the blob path. `ClassificationResults` holds the latest classification of every document, one row per blob location. For a manual Azure SQL setup, see [sql/create_employee_data.sql](sql/create_employee_data.sql).
+- **Excel report:** sheets Classification, EmployeeData and PreviousEmployment, built from both tables. Saved to `output/onboarding_results.xlsx` by `run_local.py`, or `reports/onboarding_results_<timestamp>.xlsx` by `/api/report`.
 - **Local to Azure:** you only change the connection strings, no code.
 
-_TBD: Azurite + `func start` for the full Azure Function._
+## Azure Function
+
+| Function | Trigger | Does |
+|---|---|---|
+| `process_incoming_blob` | Blob created in `incoming` | Classifies and routes that one file. Skips files already marked `NeedsReview` until they are re-uploaded. |
+| `process_all` | `POST /api/process-all` | Processes everything in `incoming` and returns a JSON summary per file |
+| `report` | `POST /api/report` | Builds the report from the database, saves it to `reports` and returns the blob name and row counts (no link) |
+
+HTTP functions use `AuthLevel.FUNCTION` (a function key in Azure; not checked by `func start`). The blob trigger uses Event Grid by default, which Flex Consumption requires. Locally, `BLOB_TRIGGER_SOURCE=LogsAndContainerScan` switches it to polling, because Azurite has no Event Grid. In Azure, `SQL_CONNECTION_STRING` is required: the SQLite fallback is for local runs only.
+
+### Running the Function locally
+
+Needs [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local) and Azurite with **all** services (VS Code: `Azurite: Start`), because the Functions host uses blobs, queues and tables.
+
+```powershell
+Copy-Item local.settings.example.json local.settings.json   # once
+.venv\Scripts\Activate.ps1
+func start
+python upload_samples.py                                     # in a second terminal: the blob trigger picks these up
+Invoke-RestMethod -Method Post http://localhost:7071/api/process-all
+Invoke-RestMethod -Method Post http://localhost:7071/api/report
+```
 
 ## Mock vs real LLM
 
@@ -119,4 +141,5 @@ _TBD: Flex Consumption, managed identity, Key Vault._
 - [x] Blob routing
 - [x] SQL persistence (SQLite locally, Azure SQL via connection string)
 - [x] Excel report
-- [ ] Azure Function trigger and deployment
+- [x] Azure Function triggers (blob, process-all, report)
+- [ ] Deployment

@@ -1,7 +1,7 @@
-"""Reads and writes rows in the EmployeeData table.
+"""Reads and writes rows in the EmployeeData and ClassificationResults tables.
 
 SQLAlchemy hides the database differences: SQLite locally, Azure SQL in the
-cloud, chosen only by SQL_CONNECTION_STRING. Keep this table definition in
+cloud, chosen only by SQL_CONNECTION_STRING. Keep these table definitions in
 step with sql/create_employee_data.sql.
 """
 
@@ -16,6 +16,7 @@ from urllib.parse import quote_plus
 from sqlalchemy import (
     Boolean,
     Column,
+    Connection,
     Date,
     DateTime,
     Float,
@@ -26,6 +27,7 @@ from sqlalchemy import (
     UnicodeText,
     UniqueConstraint,
     create_engine,
+    delete,
     insert,
     make_url,
     select,
@@ -65,6 +67,23 @@ employee_data = Table(
 
 EMPLOYEE_COLUMNS = [c.name for c in employee_data.columns if c.name != "Id"]
 
+# Latest classification of every document, routed or not, for the report.
+classification_results = Table(
+    "ClassificationResults",
+    metadata,
+    Column("Id", Integer, primary_key=True, autoincrement=True),
+    Column("Location", Unicode(400), nullable=False),  # "container/path" where the file lives now
+    Column("FileName", Unicode(255), nullable=False),
+    Column("Category", Unicode(32)),
+    Column("Confidence", Float),
+    Column("Reason", UnicodeText),
+    Column("PersonKey", Unicode(64), nullable=False),
+    Column("Status", Unicode(20), nullable=False),
+    Column("Issues", UnicodeText),
+    Column("ProcessedAt", DateTime().with_variant(mssql.DATETIME2(), "mssql"), nullable=False),  # UTC
+    UniqueConstraint("Location", name="UQ_ClassificationResults_Location"),
+)
+
 
 def resolve_database_url(connection_string: str | None, output_dir: Path) -> str:
     """Turn SQL_CONNECTION_STRING into a SQLAlchemy URL.
@@ -103,6 +122,20 @@ def to_employee_row(result: DocumentResult, blob_url: str, processed_at: datetim
     }
 
 
+def to_classification_row(result: DocumentResult, location: str, processed_at: datetime) -> dict[str, Any]:
+    return {
+        "Location": location,
+        "FileName": result.source_file,
+        "Category": result.category.value if result.category else None,
+        "Confidence": result.confidence,
+        "Reason": result.reason,
+        "PersonKey": result.person_key,
+        "Status": result.status.value,
+        "Issues": "; ".join(result.issues) or None,
+        "ProcessedAt": processed_at,
+    }
+
+
 class EmployeeRepository:
     def __init__(self, database_url: str) -> None:
         url = make_url(database_url)
@@ -124,16 +157,37 @@ class EmployeeRepository:
             employee_data.c.FileName == row["FileName"]
         )
         with self._engine.begin() as conn:  # one transaction, committed on success
-            existing_id = conn.execute(select(employee_data.c.Id).where(same_key)).scalar_one_or_none()
-            if existing_id is None:
-                conn.execute(insert(employee_data).values(**row))
-            else:
-                conn.execute(update(employee_data).where(employee_data.c.Id == existing_id).values(**row))
+            _upsert(conn, employee_data, same_key, row)
+
+    def upsert_classification(self, row: dict[str, Any], replaces: str | None = None) -> None:
+        """Insert or update the row for row["Location"].
+
+        replaces: the document's previous location (its incoming path once it is
+        routed), whose row is removed in the same transaction.
+        """
+        with self._engine.begin() as conn:
+            if replaces and replaces != row["Location"]:
+                conn.execute(delete(classification_results).where(classification_results.c.Location == replaces))
+            _upsert(conn, classification_results, classification_results.c.Location == row["Location"], row)
 
     def fetch_all(self) -> list[dict[str, Any]]:
+        return self._fetch(employee_data)
+
+    def fetch_classifications(self) -> list[dict[str, Any]]:
+        return self._fetch(classification_results)
+
+    def _fetch(self, table: Table) -> list[dict[str, Any]]:
         with self._engine.connect() as conn:
-            rows = conn.execute(select(employee_data).order_by(employee_data.c.Id))
+            rows = conn.execute(select(table).order_by(table.c.Id))
             return [dict(row._mapping) for row in rows]
 
     def dispose(self) -> None:
         self._engine.dispose()
+
+
+def _upsert(conn: Connection, table: Table, same_key: Any, row: dict[str, Any]) -> None:
+    existing_id = conn.execute(select(table.c.Id).where(same_key)).scalar_one_or_none()
+    if existing_id is None:
+        conn.execute(insert(table).values(**row))
+    else:
+        conn.execute(update(table).where(table.c.Id == existing_id).values(**row))
