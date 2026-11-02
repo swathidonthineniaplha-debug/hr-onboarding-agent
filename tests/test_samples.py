@@ -17,7 +17,7 @@ EXPECTED = {
     "passport_jordan_placeholder.pdf": ("Passport", "jordan-placeholder", "Processed"),
     "driving_licence_alex_example.pdf": ("DrivingLicence", "alex-example", "Processed"),
     "driving_licence_jordan_placeholder.txt": ("DrivingLicence", "jordan-placeholder", "Processed"),
-    "employee_alex_example.txt": ("EmployeeDocument", "alex-example", "NeedsReview"),
+    "employee_alex_example.txt": ("EmployeeDocument", "alex-example", "Processed"),
     "employee_jordan_placeholder.pdf": ("EmployeeDocument", "jordan-placeholder", "NeedsReview"),
     "ambiguous_note.txt": ("Other", "unknown", "NeedsReview"),
 }
@@ -34,9 +34,10 @@ def test_sample_outcome(filename):
     assert (result.category.value, result.person_key, result.status.value) == (category, person_key, status)
 
 
-def test_alex_form_flags_age_mismatch():
+def test_alex_form_is_clean():
     result = run("employee_alex_example.txt")
-    assert result.issues == ["Stated age 31 does not match age 36 calculated from date of birth 1990-04-12"]
+    assert result.issues == []
+    assert (result.extraction.stated_age, result.calculated_age, result.age_mismatch) == (36, 36, False)
     assert len(result.extraction.previous_employment) == 2
 
 

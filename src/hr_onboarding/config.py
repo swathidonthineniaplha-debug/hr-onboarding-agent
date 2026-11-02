@@ -44,12 +44,11 @@ class Settings:
     anthropic_api_key: str | None = field(default=None, repr=False)
     anthropic_model: str = "claude-opus-5-5"
 
-    # Blob Storage
+    # Blob Storage ("UseDevelopmentStorage=true" = local Azurite emulator)
     storage_connection_string: str = field(default="UseDevelopmentStorage=true", repr=False)
-    blob_input_container: str = "onboarding-uploads"
-    blob_identity_container: str = "identity-documents"
 
-    # Azure SQL (optional until the SQL step is built)
+    # Database: None = local SQLite file in output_dir. Accepts a SQLAlchemy URL
+    # or an Azure SQL ODBC string ("Driver={ODBC Driver 18 for SQL Server};...").
     sql_connection_string: str | None = field(default=None, repr=False)
 
     # Output / logging
@@ -88,8 +87,6 @@ class Settings:
             anthropic_api_key=get("ANTHROPIC_API_KEY"),
             anthropic_model=get("ANTHROPIC_MODEL", cls.anthropic_model),
             storage_connection_string=get("STORAGE_CONNECTION_STRING", cls.storage_connection_string),
-            blob_input_container=get("BLOB_INPUT_CONTAINER", cls.blob_input_container),
-            blob_identity_container=get("BLOB_IDENTITY_CONTAINER", cls.blob_identity_container),
             sql_connection_string=get("SQL_CONNECTION_STRING"),
             output_dir=Path(get("OUTPUT_DIR", str(cls.output_dir))),
             log_level=get("LOG_LEVEL", cls.log_level).upper(),

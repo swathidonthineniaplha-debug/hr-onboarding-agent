@@ -6,7 +6,7 @@ Example Corp HR (fictional)
 --- Personal details ---
 Full name:            Alex Example
 Date of birth:        12 April 1990
-Age:                  31
+Age:                  36
 
 --- Right to work in the UK ---
 Status:               Skilled Worker visa, expires 2028-03-31

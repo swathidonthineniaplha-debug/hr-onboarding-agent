@@ -68,3 +68,4 @@ class DocumentResult(BaseModel):
     issues: list[str] = Field(default_factory=list)
     extraction: EmployeeExtraction | None = None
     calculated_age: int | None = None
+    age_mismatch: bool | None = None  # None when either age is unknown

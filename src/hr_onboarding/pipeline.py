@@ -18,6 +18,8 @@ from .llm import LLMClient, StructuredOutputError
 from .models import DocumentCategory, DocumentResult, ProcessingStatus
 from .person_key import UNKNOWN_PERSON, extract_person_key
 
+NAME_NOT_FOUND = "Name not found"
+
 
 def process_document(
     filename: str, content: bytes, llm: LLMClient, today: date | None = None
@@ -41,13 +43,14 @@ def process_document(
         person_key = extract_person_key(llm, text)
     except StructuredOutputError as exc:
         person_key = UNKNOWN_PERSON
-        issues.append(f"Name lookup failed: {exc}")
+        issues.append(f"Name not found (lookup failed: {exc})")
     else:
         if person_key == UNKNOWN_PERSON:
-            issues.append("No full name found; person key is 'unknown'")
+            issues.append(NAME_NOT_FOUND)
 
     extraction = None
     calculated_age = None
+    age_mismatch = None
     if classification.confidence < CONFIDENCE_THRESHOLD:
         issues.append(
             f"Low classification confidence ({classification.confidence:.2f} < {CONFIDENCE_THRESHOLD})"
@@ -63,6 +66,8 @@ def process_document(
             issues.extend(validate_extraction(extraction, today))
             if extraction.date_of_birth:
                 calculated_age = calculate_age(extraction.date_of_birth, today)
+                if extraction.stated_age is not None:
+                    age_mismatch = extraction.stated_age != calculated_age
 
     return DocumentResult(
         source_file=filename,
@@ -74,6 +79,7 @@ def process_document(
         issues=issues,
         extraction=extraction,
         calculated_age=calculated_age,
+        age_mismatch=age_mismatch,
     )
 
 

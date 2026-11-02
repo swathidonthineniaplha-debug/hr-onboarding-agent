@@ -8,7 +8,7 @@ from hr_onboarding.config import ConfigError, LLMProvider, Settings
 def test_defaults_to_mock_with_no_env():
     settings = Settings.from_env({})
     assert settings.llm_provider is LLMProvider.MOCK
-    assert settings.blob_input_container == "onboarding-uploads"
+    assert settings.storage_connection_string == "UseDevelopmentStorage=true"
     assert settings.sql_connection_string is None
 
 

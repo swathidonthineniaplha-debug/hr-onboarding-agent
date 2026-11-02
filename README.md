@@ -32,10 +32,13 @@ src/hr_onboarding/       Core logic (no Azure Functions dependency)
                          plus the shared JSON-validate-retry helper
   classification/        Passport / DrivingLicence / EmployeeDocument / Other
   extraction/            Employee field extraction + validation rules
-  routing/               Blob folder routing for identity documents
-  storage/               Blob and SQL adapters
+  service.py             Pipeline + storage: incoming -> routed blob (+ SQL row)
+  routing/               Container / folder rules
+  storage/               Blob store (Azure/Azurite + in-memory) and SQL repository
   reporting/             Excel report
-sql/schema.sql           EmployeeData table
+sql/create_employee_data.sql   EmployeeData table for the Azure portal
+upload_samples.py        Upload sample_documents/ to "incoming"
+run_local.py             Run the full flow locally
 sample_documents/        Fictional test documents (see its README)
 scripts/                 Helper scripts (e.g. regenerate sample PDFs)
 tests/                   pytest suite
@@ -64,19 +67,34 @@ All settings come from environment variables. See [.env.example](.env.example) f
 | `AZURE_OPENAI_ENDPOINT` / `_API_KEY` / `_DEPLOYMENT` / `_API_VERSION` | _(none)_ / _(none)_ / _(none)_ / `2024-10-21` | Azure OpenAI / Microsoft Foundry connection |
 | `AZURE_OPENAI_TEMPERATURE` | _(not sent)_ | Optional; leave unset for reasoning models |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | _(none)_ / `claude-opus-5-5` | Anthropic connection |
-| `STORAGE_CONNECTION_STRING` | Azurite | Blob Storage connection |
-| `BLOB_INPUT_CONTAINER` | `onboarding-uploads` | Upload container watched by the function |
-| `BLOB_IDENTITY_CONTAINER` | `identity-documents` | Per-person passport/licence folders |
-| `SQL_CONNECTION_STRING` | _(none)_ | Azure SQL connection |
+| `STORAGE_CONNECTION_STRING` | `UseDevelopmentStorage=true` (Azurite) | Blob Storage connection |
+| `SQL_CONNECTION_STRING` | SQLite `output/hr_onboarding.db` | SQLAlchemy URL, or the Azure SQL ODBC string from the portal |
 | `OUTPUT_DIR` | `output` | Excel report location |
 
 ## Running locally
 
-Run the core pipeline over the sample documents (no Azure needed):
+With Azurite running (VS Code: `Azurite: Start Blob Service`):
 
 ```powershell
-python run_local.py
+python upload_samples.py   # sample_documents/ -> "incoming" container
+python run_local.py        # route blobs, upsert EmployeeData, write the Excel report
 ```
+
+Without Azurite, `python run_local.py --offline` runs the same flow with in-memory blobs.
+
+## Storage
+
+| Category | Destination | SQL row |
+|---|---|---|
+| Passport | `passports/<PersonKey>/<FileName>` | No |
+| DrivingLicence | `driving-licences/<PersonKey>/<FileName>` | No |
+| EmployeeDocument | `employee-documents/<PersonKey>/<FileName>` | Yes, in `EmployeeData` |
+| Other, low confidence (< 0.8) or name not found | stays in `incoming`, blob metadata `status=NeedsReview` | No |
+
+- **Order of steps:** copy to the destination, then upsert the SQL row, and only then delete from `incoming`. A failure at any step leaves the original in place, and a retry is safe.
+- **One table:** `EmployeeData` has a unique key on `(PersonKey, FileName)`, matching the blob path. For a manual Azure SQL setup, see [sql/create_employee_data.sql](sql/create_employee_data.sql).
+- **Excel report:** sheets Classification, EmployeeData and PreviousEmployment. Saved to `output/onboarding_results.xlsx` locally, or `reports/onboarding_results_<timestamp>.xlsx` in Azure.
+- **Local to Azure:** you only change the connection strings, no code.
 
 _TBD: Azurite + `func start` for the full Azure Function._
 
@@ -98,7 +116,7 @@ _TBD: Flex Consumption, managed identity, Key Vault._
 - [x] Project scaffold and configuration
 - [x] LLM provider abstraction
 - [x] Classification, person key, extraction and validation
-- [ ] Blob routing
-- [ ] Azure SQL persistence
-- [ ] Excel report
+- [x] Blob routing
+- [x] SQL persistence (SQLite locally, Azure SQL via connection string)
+- [x] Excel report
 - [ ] Azure Function trigger and deployment

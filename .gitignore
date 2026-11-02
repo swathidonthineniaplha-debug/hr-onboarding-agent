@@ -11,6 +11,9 @@ output/
 
 # Azurite (local Azure Storage emulator) files
 __azurite*
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
 
 # Python bytecode and tool caches
 __pycache__/

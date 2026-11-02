@@ -7,7 +7,8 @@ azure-functions>=1.21
 azure-storage-blob>=12.24
 azure-identity>=1.19
 
-# Azure SQL via ODBC Driver 18
+# Database: SQLAlchemy over SQLite (local) or Azure SQL (pyodbc + ODBC Driver 18)
+sqlalchemy>=2.0
 pyodbc>=5.2
 
 # LLM providers (the openai SDK also covers Azure OpenAI)
