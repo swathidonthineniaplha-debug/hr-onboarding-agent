@@ -1,5 +1,8 @@
 # HR Onboarding Agent
 
+<!-- Replace <org>, <project> and <definitionId> with your Azure DevOps values (Pipelines > ... > Status badge). -->
+[![Build Status](https://dev.azure.com/<org>/<project>/_apis/build/status/<definitionId>?branchName=main)](https://dev.azure.com/<org>/<project>/_build/latest?definitionId=<definitionId>&branchName=main)
+
 An Azure Function that uses an LLM to classify uploaded onboarding documents and route them:
 
 - **Passports and driving licences**: filed in Blob Storage, one folder per person

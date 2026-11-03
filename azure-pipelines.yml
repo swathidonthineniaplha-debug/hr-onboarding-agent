@@ -1,0 +1,177 @@
+# CI/CD for the HR onboarding Function App (code hosted on GitHub).
+#
+# CI  - every push and pull request to main: lint, test (mock LLM, no Azure
+#       resources or secrets), package the runtime files as a zip artifact.
+# CD  - main only, after CI passes and when enableDeploy is 'true': deploy to
+#       the Flex Consumption app with a remote build, then smoke-test /api/health.
+#
+# Setup steps are in DEPLOYMENT.md ("Azure DevOps CI/CD").
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  # functionAppName, resourceGroup, enableDeploy
+  - group: hr-onboarding-settings
+  # Not a secret. Must match the service connection name in Project settings.
+  - name: azureServiceConnection
+    value: sc-hr-onboarding
+  - name: pythonVersion
+    value: '3.13'
+  - name: PIP_CACHE_DIR
+    value: $(Pipeline.Workspace)/.pip
+
+stages:
+  - stage: CI
+    displayName: Build and test
+    jobs:
+      - job: build
+        displayName: Lint, test and package
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: UsePythonVersion@0
+            displayName: Use Python $(pythonVersion)
+            inputs:
+              versionSpec: $(pythonVersion)
+
+          - task: Cache@2
+            displayName: Cache pip downloads
+            inputs:
+              key: 'pip | "$(Agent.OS)" | "$(pythonVersion)" | requirements.txt | requirements-dev.txt'
+              restoreKeys: |
+                pip | "$(Agent.OS)" | "$(pythonVersion)"
+              path: $(PIP_CACHE_DIR)
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt -r requirements-dev.txt
+            displayName: Install dependencies
+
+          - script: ruff check . --output-format azure
+            displayName: Lint (ruff)
+
+          - script: >
+              python -m pytest
+              --junitxml=test-results.xml
+              --cov=src --cov=function_app
+              --cov-report=xml:coverage.xml
+            displayName: Run tests (mock LLM)
+            env:
+              LLM_PROVIDER: mock
+
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: test-results.xml
+              testRunTitle: Python $(pythonVersion)
+              failTaskOnFailedTests: true
+
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish code coverage
+            condition: succeededOrFailed()
+            inputs:
+              summaryFileLocation: coverage.xml
+
+          # Copy only runtime files (everything not in .funcignore). Python
+          # packages are not included: they are installed by the remote build.
+          - script: |
+              set -euo pipefail
+              staging="$(Build.ArtifactStagingDirectory)/app"
+              mkdir -p "$staging"
+              rsync -a --exclude-from=.funcignore ./ "$staging/"
+              echo "Package contents:"
+              (cd "$staging" && find . -type f | sort)
+              test -f "$staging/function_app.py" -a -f "$staging/host.json" -a -f "$staging/requirements.txt"
+            displayName: Stage runtime files
+
+          - task: ArchiveFiles@2
+            displayName: Zip function app
+            inputs:
+              rootFolderOrFile: $(Build.ArtifactStagingDirectory)/app
+              includeRootFolder: false
+              archiveType: zip
+              archiveFile: $(Build.ArtifactStagingDirectory)/functionapp.zip
+
+          - publish: $(Build.ArtifactStagingDirectory)/functionapp.zip
+            artifact: drop
+            displayName: Publish artifact
+
+  - stage: CD
+    displayName: Deploy to production
+    dependsOn: CI
+    condition: >
+      and(
+        succeeded(),
+        eq(variables['Build.SourceBranch'], 'refs/heads/main'),
+        ne(variables['Build.Reason'], 'PullRequest'),
+        eq(variables['enableDeploy'], 'true')
+      )
+    jobs:
+      - deployment: deploy
+        displayName: Deploy and smoke test
+        pool:
+          vmImage: ubuntu-latest
+        environment: production  # has an approval check
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # The deployment job downloads "drop" to $(Pipeline.Workspace)/drop.
+                # AzureFunctionApp@2 has no remote-build option on Flex Consumption,
+                # so deploy with the Azure CLI, which Microsoft recommends for Python.
+                - task: AzureCLI@2
+                  displayName: Deploy zip (remote build)
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      az functionapp deployment source config-zip \
+                        --resource-group "$(resourceGroup)" \
+                        --name "$(functionAppName)" \
+                        --src "$(Pipeline.Workspace)/drop/functionapp.zip" \
+                        --build-remote true
+
+                # The function key is read at runtime and masked; it is never stored.
+                - task: AzureCLI@2
+                  displayName: Smoke test /api/health
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      host=$(az functionapp show -g "$(resourceGroup)" -n "$(functionAppName)" \
+                        --query defaultHostName -o tsv)
+                      key=$(az functionapp keys list -g "$(resourceGroup)" -n "$(functionAppName)" \
+                        --query functionKeys.default -o tsv)
+                      if [ -z "$key" ]; then
+                        echo "##vso[task.logissue type=error]Could not read the default function key"
+                        exit 1
+                      fi
+                      echo "##vso[task.setsecret]$key"
+
+                      url="https://$host/api/health"
+                      for attempt in 1 2 3 4 5 6 7 8 9 10; do
+                        body=$(curl -sS --max-time 30 -H "x-functions-key: $key" "$url" || true)
+                        status=$(echo "$body" | jq -r '.status // empty' 2>/dev/null || true)
+                        if [ "$status" = "ok" ]; then
+                          echo "Health check passed on attempt $attempt: $body"
+                          exit 0
+                        fi
+                        echo "Attempt $attempt: not ok yet (response: ${body:-none}); retrying in 15s"
+                        sleep 15
+                      done
+                      echo "##vso[task.logissue type=error]$url did not return {\"status\": \"ok\"}"
+                      exit 1

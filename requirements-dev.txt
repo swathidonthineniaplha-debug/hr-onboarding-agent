@@ -1,4 +1,6 @@
 # Local development and testing only - not deployed.
 -r requirements.txt
 pytest>=8.3
+pytest-cov>=7.0  # coverage report for the CI pipeline
+ruff==0.17.3  # pinned so lint results only change on purpose
 fpdf2>=2.8  # generates sample_documents/*.pdf

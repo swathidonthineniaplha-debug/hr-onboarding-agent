@@ -2,3 +2,11 @@
 # Lets tests import `hr_onboarding` (src/ layout) and `function_app` (project root).
 pythonpath = ["src", "."]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+# pycodestyle errors and warnings, pyflakes, import sorting
+select = ["E", "F", "I", "W"]

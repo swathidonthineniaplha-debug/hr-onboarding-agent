@@ -132,6 +132,20 @@ def test_report_http_returns_blob_name_not_link(blobs, functions):
     assert body["row_counts"] == {"Classification": 0, "EmployeeData": 0, "PreviousEmployment": 0}
 
 
+# --- Health ---------------------------------------------------------------
+
+def test_health_returns_ok_without_building_the_service(monkeypatch):
+    def fail():
+        raise AssertionError("health must not touch storage, SQL or the LLM")
+
+    monkeypatch.setattr(function_app, "get_service", fail)
+    request = func.HttpRequest(method="GET", url="/api/health", body=b"")
+    response = FUNCTIONS["health"].get_user_function()(request)
+    assert response.status_code == 200
+    assert response.mimetype == "application/json"
+    assert json.loads(response.get_body()) == {"status": "ok"}
+
+
 # --- Registration ---------------------------------------------------------
 
 def test_functions_are_registered_with_expected_bindings():
@@ -143,6 +157,9 @@ def test_functions_are_registered_with_expected_bindings():
         assert bindings[name]["route"] == route
         assert bindings[name]["authLevel"] == func.AuthLevel.FUNCTION
         assert [str(m.value) for m in bindings[name]["methods"]] == ["POST"]
+    assert bindings["health"]["route"] == "health"
+    assert bindings["health"]["authLevel"] == func.AuthLevel.FUNCTION
+    assert [str(m.value) for m in bindings["health"]["methods"]] == ["GET"]
 
 
 def test_sqlite_fallback_is_refused_in_azure(monkeypatch):

@@ -4,6 +4,8 @@
 - process_all            POST /api/process-all: process everything currently in "incoming"
 - report                 POST /api/report: build the Excel report from the database and
                          save it to "reports" (returns the blob name, never a link)
+- health                 GET /api/health: {"status": "ok"} for the deployment smoke test;
+                         touches no storage, SQL or LLM
 
 The handle_* functions hold the logic and take the service as an argument, so
 tests can call them with in-memory blobs and SQLite. The decorated functions
@@ -112,6 +114,10 @@ def handle_report(service: OnboardingService, now: datetime | None = None) -> di
     }
 
 
+def handle_health() -> dict[str, Any]:
+    return {"status": "ok"}
+
+
 def document_summary(document: ProcessedDocument) -> dict[str, Any]:
     result = document.result
     return {
@@ -145,6 +151,11 @@ def process_all(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="report", methods=["POST"])
 def report(req: func.HttpRequest) -> func.HttpResponse:
     return json_response(handle_report(get_service()))
+
+
+@app.route(route="health", methods=["GET"])
+def health(req: func.HttpRequest) -> func.HttpResponse:
+    return json_response(handle_health())
 
 
 def json_response(body: dict[str, Any]) -> func.HttpResponse:

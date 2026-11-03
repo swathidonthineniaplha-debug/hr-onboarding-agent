@@ -69,7 +69,9 @@ def test_employee_sheet_values(workbook):
     headers = [c.value for c in ws[1]]
     rows = [dict(zip(headers, (c.value for c in row))) for row in ws.iter_rows(min_row=2)]
     alex = next(r for r in rows if r["PersonKey"] == "alex-example")
-    assert (alex["StatedAge"], alex["CalculatedAge"], alex["AgeMismatch"], alex["Status"]) == (36, 36, False, "Processed")
+    assert (alex["StatedAge"], alex["CalculatedAge"], alex["AgeMismatch"], alex["Status"]) == (
+        36, 36, False, "Processed"
+    )
 
 
 def test_save_locally_and_to_blob(tmp_path, blobs):

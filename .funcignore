@@ -9,6 +9,7 @@ output/
 
 # Python bytecode and tool caches
 __pycache__/
+**/__pycache__/
 .pytest_cache/
 
 # Sample documents (uploaded to Blob Storage separately)
@@ -23,3 +24,25 @@ __tablestorage__/
 # Local settings and secrets - set these as App Settings in Azure instead
 local.settings.json
 .env
+
+# Git, editor, CI and lint/coverage output
+.git/
+.gitignore
+.vscode/
+azure-pipelines.yml
+.ruff_cache/
+.coverage
+coverage.xml
+test-results.xml
+htmlcov/
+
+# Local-only scripts, docs and dev configuration (not needed at runtime)
+scripts/
+sql/
+*.md
+run_local.py
+upload_samples.py
+requirements-dev.txt
+pyproject.toml
+.env.example
+local.settings.example.json
