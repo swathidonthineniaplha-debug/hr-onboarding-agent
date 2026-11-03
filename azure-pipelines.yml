@@ -152,17 +152,31 @@ stages:
                     scriptLocation: inlineScript
                     inlineScript: |
                       set -euo pipefail
+
+                      # az errors are not suppressed: set -e stops the step if a command fails.
+                      # Flex Consumption apps can return the host name under properties, so
+                      # try each place it can appear (JMESPath || takes the first non-empty).
                       host=$(az functionapp show -g "$(resourceGroup)" -n "$(functionAppName)" \
-                        --query defaultHostName -o tsv)
+                        --query "defaultHostName || properties.defaultHostName || hostNames[0] || properties.hostNames[0]" \
+                        -o tsv | tr -d '\r')
                       key=$(az functionapp keys list -g "$(resourceGroup)" -n "$(functionAppName)" \
-                        --query functionKeys.default -o tsv)
-                      if [ -z "$key" ]; then
-                        echo "##vso[task.logissue type=error]Could not read the default function key"
+                        --query functionKeys.default -o tsv | tr -d '\r')
+                      if [ -n "$key" ]; then
+                        echo "##vso[task.setsecret]$key"
+                      fi
+
+                      missing=()
+                      [ -z "$host" ] && missing+=("host name (az functionapp show)")
+                      [ -z "$key" ] && missing+=("default function key (az functionapp keys list)")
+                      if [ ${#missing[@]} -gt 0 ]; then
+                        for item in "${missing[@]}"; do
+                          echo "##vso[task.logissue type=error]Smoke test cannot run: empty $item for $(functionAppName) in $(resourceGroup)"
+                        done
                         exit 1
                       fi
-                      echo "##vso[task.setsecret]$key"
 
                       url="https://$host/api/health"
+                      echo "Health URL: $url"
                       for attempt in 1 2 3 4 5 6 7 8 9 10; do
                         body=$(curl -sS --max-time 30 -H "x-functions-key: $key" "$url" || true)
                         status=$(echo "$body" | jq -r '.status // empty' 2>/dev/null || true)
